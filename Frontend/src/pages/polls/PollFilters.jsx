@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import GridViewIcon from '@mui/icons-material/GridView';
 
 const PollFilters = ({ activeFilter, onFilterChange }) => {
   const [dropdowns, setDropdowns] = useState({ location: false, status: false });
@@ -6,13 +8,14 @@ const PollFilters = ({ activeFilter, onFilterChange }) => {
   const pollTypes = ['Active Polls', 'Polls I Voted On', 'My Polls', 'Closed Polls'];
   const locations = ['All Locations', 'San Diego, CA', 'Los Angeles, CA', 'New York, NY', 'Chicago, IL', 'Miami, FL'];
   const statuses = ['All Status', 'Active', 'Closed', 'Draft'];
+  const viewOptions = ['List View', 'Grid View'];
 
   const toggleDropdown = (dropdown) => {
     setDropdowns(prev => ({ ...prev, [dropdown]: !prev[dropdown] }));
   };
 
   const handleSelect = (type, value) => {
-    onFilterChange(type, value);keep
+    onFilterChange(type, value);
     setDropdowns(prev => ({ ...prev, [type]: false }));
   };
 
@@ -42,6 +45,32 @@ const PollFilters = ({ activeFilter, onFilterChange }) => {
         </div>
 
         <div className="flex space-x-4 items-center">
+          {/* View Toggle - NEW */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => onFilterChange('view', 'List View')}
+              className={`flex items-center px-2 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                activeFilter.view === 'List View' || !activeFilter.view
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <ViewListIcon className="w-2 h-2 " />
+              
+            </button>
+            <button
+              onClick={() => onFilterChange('view', 'Grid View')}
+              className={`flex items-center px-2 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                activeFilter.view === 'Grid View'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <GridViewIcon className="w-2 h-2 " />
+              
+            </button>
+          </div>
+
           {/* Location Filter */}
           <div className="relative">
             <button

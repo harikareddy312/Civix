@@ -1,40 +1,50 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom"; // Add this import
-import PetitionStats from "./PetitionStats";
-import PetitionFilters from "./PetitionFilters";
+import { useSearchParams, useNavigate } from "react-router-dom"; // Add useNavigate
 import PetitionCard from "./PetitionCard";
-import { useNavigate } from "react-router-dom";
-import petitionService from "../../services/petitionService"; // Import default export
+import PetitionFilters from "./PetitionFilters";
+import PetitionStats from "./PetitionStats";
+import petitionService from "../../services/petitionService";
 import { getCurrentUserId } from "../../utils/auth";
-import { Alert, Box, Chip } from "@mui/material"; // Add these imports
+import { Alert, Box, Chip } from "@mui/material";
 
 const PetitionList = () => {
+  const navigate = useNavigate(); // Add navigation hook
   const currentUserId = getCurrentUserId();
-  const navigate = useNavigate();
-
-  // Add search params handling
+  
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('search');
   const highlightId = searchParams.get('highlight');
   const fromSearch = searchParams.get('from') === 'search';
 
-  const [filters, setFilters] = useState({ 
-    type: "All Petitions", 
-    category: "All Categories", 
-    status: "All Status" 
+  const [filters, setFilters] = useState({
+    type: "Active Petitions",
+    location: "All Locations",
+    status: "All Status",
+    view: "List View", // Add view state
   });
   const [petitions, setPetitions] = useState([]);
   const [filteredPetitions, setFilteredPetitions] = useState([]);
-  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add refresh trigger
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const mapStatusToUI = (status) => {
     switch (status) {
-      case "active": return "Active";
-      case "under_review": return "Under Review";
-      case "closed": return "Closed";
-      default: return status;
+      case "active":
+        return "Active";
+      case "closed":
+        return "Closed";
+      case "under_review":
+        return "Under Review";
+      default:
+        return status;
     }
   };
+
+  const normalizePetition = (p) => ({
+    ...p,
+    status: mapStatusToUI(p.status),
+    signaturesCount: p.signaturesCount || 0,
+    time: getRelativeTime(p.createdAt)
+  });
 
   const getRelativeTime = (date) => {
     const diff = Math.floor((Date.now() - new Date(date)) / 1000);
@@ -53,10 +63,8 @@ const PetitionList = () => {
     const highlightedPetition = petitionsArray.find(p => p._id === highlightId || p.id === highlightId);
     const otherPetitions = petitionsArray.filter(p => p._id !== highlightId && p.id !== highlightId);
     
-    // Sort other petitions by date
     otherPetitions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
-    // Return highlighted petition first, then others
     return highlightedPetition ? [highlightedPetition, ...otherPetitions] : otherPetitions;
   };
 
@@ -77,44 +85,33 @@ const PetitionList = () => {
   useEffect(() => {
     const fetchPetitions = async () => {
       try {
-        const data = await petitionService.getAllPetitions(); // Use correct method
-        const petitions = data.petitions || data; // Handle different response formats
-
-        const normalized = petitions.map((p) => ({
-          ...p,
-          status: mapStatusToUI(p.status),
-          signaturesCount: typeof p.signaturesCount === 'number' ? p.signaturesCount : 0,
-          goal: p.signatureGoal || 100,
-          time: getRelativeTime(p.createdAt),
-          // derive stable signed flag for card
-          signedByCurrentUser: !!p.signedByCurrentUser,
-        }));
-
-        // Apply search filter if coming from search
+        const data = await petitionService.getAllPetitions();
+        const petitionsArray = Array.isArray(data) ? data : data.petitions || [];
+        const normalized = petitionsArray.map((p) => normalizePetition(p));
+        
         let processedPetitions = normalized;
         if (fromSearch && searchQuery) {
           processedPetitions = filterPetitionsBySearch(normalized);
         }
         
-        // Sort with highlight priority
         const sortedPetitions = sortPetitionsWithHighlight(processedPetitions);
 
         setPetitions(sortedPetitions);
-        setFilteredPetitions(sortedPetitions); // default = all petitions
+        setFilteredPetitions(sortedPetitions);
       } catch (err) {
         console.error("Error fetching petitions:", err);
       }
     };
 
     fetchPetitions();
-  }, [searchQuery, highlightId, fromSearch]); // Add dependencies
+  }, [searchQuery, highlightId, fromSearch]);
 
-  // Apply filters on frontend side
+  // Apply filters
   useEffect(() => {
     let result = [...petitions];
 
-    if (filters.category !== "All Categories") {
-      result = result.filter((p) => p.category === filters.category);
+    if (filters.location !== "All Locations") {
+      result = result.filter((p) => p.location === filters.location);
     }
 
     if (filters.status !== "All Status") {
@@ -122,71 +119,81 @@ const PetitionList = () => {
     }
 
     if (filters.type === "My Petitions") {
-      result = result.filter((p) => p.creator?._id === currentUserId);
-    }
-    if (filters.type === "Signed by Me") {
-      result = result.filter((p) => !!p.signedByCurrentUser);
+      result = result.filter((p) => {
+        const creatorId = p.creator?._id || p.creator?.id || p.creator || p.createdBy?._id || p.createdBy?.id || p.createdBy;
+        return String(creatorId) === String(currentUserId);
+      });
+    } else if (filters.type === "Active Petitions") {
+      result = result.filter((p) => 
+        p.status === "Active" || p.status === "active"
+      );
+    } else if (filters.type === "Closed Petitions") {
+      result = result.filter((p) => 
+        p.status === "Closed" || p.status === "closed" || p.status === "Under Review"
+      );
+    } else if (filters.type === "Petitions I Signed") {
+      result = result.filter((p) => {
+        if (p.userHasSigned === true) return true;
+        if (p.hasSigned === true) return true;
+        if (p.signatures && Array.isArray(p.signatures)) {
+          return p.signatures.some(signature => {
+            const signerId = signature.user?._id || signature.user?.id || signature.user || signature.userId;
+            return String(signerId) === String(currentUserId);
+          });
+        }
+        return false;
+      });
     }
 
-    // Maintain highlight order even after filtering
     const sortedResult = sortPetitionsWithHighlight(result);
     setFilteredPetitions(sortedResult);
-  }, [filters, petitions, currentUserId, highlightId]); // Add highlightId dependency
+  }, [filters, petitions, currentUserId, highlightId]);
 
   const handleFilterChange = (type, value) =>
     setFilters((prev) => ({ ...prev, [type]: value }));
 
-  const handleCreatePetition = () => navigate("/dashboard/petitions/create");
-
-  const handleDelete = async (petitionId) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this petition?");
-    if (!confirmDelete) return;
-
-    try {
-      await petitionService.deletePetition(petitionId); // Use correct method
-      setPetitions(prev => prev.filter(p => p._id !== petitionId));
-      setRefreshTrigger(prev => prev + 1); // Trigger refresh
-      alert("Petition deleted successfully!");
-    } catch (err) {
-      alert(err.response?.data?.message || "Error deleting petition");
-    }
-  };
-
-  const handleSigned = (petitionId) => {
+  const handleSigned = (petitionId, updatedData) => {
     if (typeof petitionId === 'string' && petitionId.startsWith('delete_')) {
-      // Card already performed the delete API call; just remove locally
+      // Handle deletion
       const actualId = petitionId.replace('delete_', '');
-      setPetitions(prev => prev.filter(p => p._id !== actualId));
-      setRefreshTrigger(prev => prev + 1); // Trigger refresh
-      return;
+      setPetitions(prev => prev.filter(p => p._id !== actualId && p.id !== actualId));
+      setFilteredPetitions(prev => prev.filter(p => p._id !== actualId && p.id !== actualId));
     } else {
-      // Update the list's item to persist signed state across re-renders
-      setPetitions(prev => prev.map(p => {
-        if (p._id === petitionId) {
-          return { ...p, signedByCurrentUser: true, signaturesCount: (p.signaturesCount || 0) + 1 };
-        }
-        return p;
-      }));
-      setRefreshTrigger(prev => prev + 1); // Trigger refresh
-      // Navigate user to "Signed by Me" tab to reflect the change immediately
-      setFilters(prev => ({ ...prev, type: "Signed by Me" }));
+      // Handle signature update
+      if (updatedData) {
+        setPetitions(prev => prev.map(p => 
+          p._id === petitionId 
+            ? { ...p, signaturesCount: updatedData.signaturesCount, userHasSigned: updatedData.signed }
+            : p
+        ));
+        setFilteredPetitions(prev => prev.map(p => 
+          p._id === petitionId 
+            ? { ...p, signaturesCount: updatedData.signaturesCount, userHasSigned: updatedData.signed }
+            : p
+        ));
+      }
     }
+    setRefreshTrigger(prev => prev + 1);
   };
 
-  // Function to clear search context
   const clearSearch = () => {
     setSearchParams({});
     setRefreshTrigger(prev => prev + 1);
   };
 
+  // Handle create petition navigation
+  const handleCreatePetition = () => {
+    navigate('/dashboard/petitions/create');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         {/* Header */}
         <div className="mb-8 text-center sm:text-left">
           <h1 className="text-3xl font-bold text-gray-900">Community Petitions</h1>
           <p className="text-gray-600 mt-2">
-            Start or sign petitions to bring change to your community.
+            Browse and support community petitions for positive change.
           </p>
         </div>
 
@@ -228,16 +235,24 @@ const PetitionList = () => {
         )}
 
         {/* Stats & Filters */}
-        <PetitionStats onCreatePetition={handleCreatePetition} refreshTrigger={refreshTrigger} />
-        <PetitionFilters 
-          activeFilter={filters} 
-          onFilterChange={handleFilterChange} 
-          userId={currentUserId}
-          refreshTrigger={refreshTrigger}
-        />
+        <div className="mb-6">
+          <PetitionStats 
+            refreshTrigger={refreshTrigger}
+            onCreatePetition={handleCreatePetition} // Pass the navigation function
+          />
+          <PetitionFilters
+            activeFilter={filters}
+            onFilterChange={handleFilterChange}
+            refreshTrigger={refreshTrigger}
+          />
+        </div>
 
-        {/* Petitions List */}
-        <div className="space-y-6 mt-4">
+        {/* Petitions List - UPDATED FOR GRID VIEW */}
+        <div className={
+          filters.view === "Grid View" 
+            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
+            : "space-y-6"
+        }>
           {filteredPetitions.length > 0 ? (
             filteredPetitions.map((petition, index) => {
               const isHighlighted = petition._id === highlightId || petition.id === highlightId;
@@ -253,7 +268,7 @@ const PetitionList = () => {
                   {isHighlighted && (
                     <div className="absolute -top-2 left-4 z-10">
                       <Chip
-                        label="📍 From Search"
+                        label="From Search"
                         size="small"
                         sx={{
                           bgcolor: '#ADFF2F',
@@ -265,19 +280,19 @@ const PetitionList = () => {
                       />
                     </div>
                   )}
-                  <PetitionCard 
-                    petition={petition} 
+                  <PetitionCard
+                    petition={petition}
                     onSigned={handleSigned}
-                    onDelete={handleDelete}
                     isHighlighted={isHighlighted}
                     searchQuery={fromSearch ? searchQuery : null}
+                    viewMode={filters.view} // Pass view mode to PetitionCard
                   />
                 </div>
               );
             })
           ) : (
-            <div className="text-center py-20">
-              <div className="text-gray-400 text-6xl mb-4">✍️</div>
+            <div className="col-span-full text-center py-20">
+              <div className="text-gray-400 text-6xl mb-4">📝</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 {fromSearch && searchQuery 
                   ? `No petitions found for "${searchQuery}"`
@@ -303,14 +318,14 @@ const PetitionList = () => {
                   </button>
                 ) : (
                   <button
-                    onClick={() => handleFilterChange("type", "All Petitions")}
+                    onClick={() => handleFilterChange("type", "Active Petitions")}
                     className="px-5 py-2 text-sm font-medium text-blue-600 border border-blue-400 rounded-lg hover:bg-blue-50 transition"
                   >
                     Clear Filters
                   </button>
                 )}
                 <button
-                  onClick={handleCreatePetition}
+                  onClick={() => navigate("/dashboard/petitions/create")}
                   className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
                   Create New Petition

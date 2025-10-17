@@ -14,6 +14,7 @@ import HowToVoteIcon from "@mui/icons-material/HowToVote";
 import EditIcon from "@mui/icons-material/Edit";
 import ReportIcon from "@mui/icons-material/Report";
 import LogoutIcon from "@mui/icons-material/Logout";
+import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { useNavigate } from 'react-router-dom';
@@ -318,13 +319,34 @@ export default function Navbar() {
                   <NotificationsIcon />
                 </Badge>
               </IconButton>
-              {/* Avatar */}
-              <Avatar
-                alt={user?.name || 'User'}
-                src="https://randomuser.me/api/portraits/men/75.jpg"
-                sx={{ width: 36, height: 36, ml: 1, cursor: 'pointer' }}
+              
+              {/* Profile Section with Avatar and Dropdown Icon */}
+              <Box 
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  cursor: 'pointer',
+                  '&:hover': {
+                    opacity: 0.8
+                  }
+                }} 
                 onClick={handleAvatarClick}
-              />
+              >
+                <Avatar
+                  alt={user?.name || 'User'}
+                  src="https://randomuser.me/api/portraits/men/75.jpg"
+                  sx={{ width: 36, height: 36, ml: 1 }}
+                />
+                <ArrowDropDownIcon 
+                  sx={{ 
+                    color: 'white', 
+                    ml: 0.5,
+                    transform: Boolean(anchorEl) ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s ease-in-out'
+                  }} 
+                />
+              </Box>
+              
               {/* Dropdown Menu */}
               <Menu
                 anchorEl={anchorEl}
@@ -332,6 +354,12 @@ export default function Navbar() {
                 onClose={handleMenuClose}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                sx={{
+                  '& .MuiPaper-root': {
+                    minWidth: 180,
+                    mt: 1
+                  }
+                }}
               >
                 <MenuItem disabled>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>

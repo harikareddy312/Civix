@@ -86,10 +86,12 @@ export default function DashboardCard() {
             
             setAllPolls(transformedPolls);
             
-            // Calculate dynamic stats
-            const myPollsCount = transformedPolls.filter(poll => 
-                poll.creator?._id === userId || poll.createdBy === userId
-            ).length;
+            // Calculate dynamic stats - FIXED LOGIC matching petitions
+            const myPollsCount = transformedPolls.filter(poll => {
+                // Use the same logic as petitions: check creator._id
+                const pollCreatorId = poll.creator?._id;
+                return pollCreatorId === userId;
+            }).length;
             
             const activePollsCount = transformedPolls.filter(poll => 
                 poll.status === 'active' || poll.status === 'Active'
@@ -114,16 +116,24 @@ export default function DashboardCard() {
         }
     };
 
+    // Initial fetch and auto-refresh setup
+    useEffect(() => {
+        fetchPollsData();
+
+        // Auto-refresh polls every 30 seconds for real-time updates
+        const pollInterval = setInterval(() => {
+            fetchPollsData(false); // Don't show loading for background updates
+        }, 30000);
+
+        return () => clearInterval(pollInterval);
+    }, [userId]);
+
+    // Calculate petition stats - SAME LOGIC as before
     const myPetitionsCount = allPetitions.filter(p => p.creator?._id === userId).length;
     const successfulPetitionsCount = allPetitions.filter(p => 
         p.status === 'closed' || p.status === 'successful' || p.status === 'under_review'
     ).length;
     const activePetitionsCount = allPetitions.filter(p => p.status === 'active').length;
-
-    // Polls counts - set to 0 for now (will be dynamic later)
-    const myPollsCount = 0;
-    const activePollsCount = 0;
-    const successfulPollsCount = 0;
 
     // Navigation handlers
     const handleViewAllPetitions = () => {
@@ -142,8 +152,8 @@ export default function DashboardCard() {
         navigate('/dashboard/polls');
     };
 
-    const handleViewSuccessfulPolls = () => {
-        navigate('/dashboard/polls/successful');
+    const handleViewCompletedPolls = () => {
+        navigate('/dashboard/polls/completed');
     };
 
     const handleCreatePoll = () => {
@@ -209,7 +219,6 @@ export default function DashboardCard() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-gray-800">Polls Overview</h3>
-            
           </div>
           
           <div className={isMobile ? "flex flex-col gap-4" : "flex flex-row gap-8"}>
@@ -249,10 +258,11 @@ export default function DashboardCard() {
               <span className="text-sm opacity-60">currently voting</span>
             </div>
 
-            {/* Successful Polls */}
+            {/* Completed Polls */}
             <div 
               className="flex flex-col justify-center rounded-2xl shadow-lg flex-1 p-6 text-left cursor-pointer hover:shadow-xl transition-shadow" 
               style={{ background: '#f1f8e9', color: '#111' }}
+              onClick={handleViewCompletedPolls}
             >
               <div className="flex flex-row items-center justify-between w-full mb-2">
                 <span className="text-lg font-semibold">Completed Polls</span>

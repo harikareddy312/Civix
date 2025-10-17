@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { getCurrentUserId } from "../../utils/auth";
 import { votePoll } from "../../services/pollService";
+// Add MUI icon imports
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import EventIcon from '@mui/icons-material/Event';
+import HowToVoteIcon from '@mui/icons-material/HowToVote';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 
-const PollCard = ({ poll, onVoted, onEdit, onDelete }) => {
+const PollCard = ({ poll, onVoted, onEdit, onDelete, viewMode = "List View" }) => {
   const [selectedOptions, setSelectedOptions] = useState([]);
   const [voted, setVoted] = useState(false);
   const [votedOption, setVotedOption] = useState(null);
@@ -40,53 +46,26 @@ const PollCard = ({ poll, onVoted, onEdit, onDelete }) => {
     });
   };
 
-  // SYNCED BACKEND LOGIC for single vote
-  const handleVote = async (optionIdx = null) => {
-    // If optionIdx is provided, use single vote logic (from backend sync)
-    if (optionIdx !== null) {
-      if (voted) return;
-      
-      try {
-        setIsVoting(true);
-        const updatedPoll = await votePoll(poll._id, optionIdx);
-        setVoted(true);
-        setVotedOption(optionIdx);
-        onVoted?.(poll._id, updatedPoll);
-        alert("You have successfully voted in this poll!");
-      } catch (err) {
-        console.error("Error voting:", err);
-        alert(err.response?.data?.message || "Error voting in poll");
-      } finally {
-        setIsVoting(false);
-      }
-      return;
+  // Direct voting on option click - no alerts
+  const handleDirectVote = async (optionIdx) => {
+    if (voted || poll.status === "Closed" || isVoting) return;
+    
+    try {
+      setIsVoting(true);
+      const updatedPoll = await votePoll(poll._id, optionIdx);
+      setVoted(true);
+      setVotedOption(optionIdx);
+      onVoted?.(poll._id, updatedPoll);
+    } catch (err) {
+      console.error("Error voting:", err);
+    } finally {
+      setIsVoting(false);
     }
+  };
 
-    // Multi-select vote logic (keeping current UI functionality)
-    if (selectedOptions.length === 0) {
-      alert("Please select at least one option before voting.");
-      return;
-    }
-
-    if (voted) {
-      alert("You have already voted in this poll!");
-      return;
-    }
-
-    if (isCreator) {
-      alert("You cannot vote on your own poll!");
-      return;
-    }
-
-    if (poll.status === "Closed") {
-      alert("This poll is closed for voting!");
-      return;
-    }
-
-    const confirmVote = window.confirm(
-      `Do you want to vote for: ${selectedOptions.map(i => poll.options[i]?.text).join(', ')}?`
-    );
-    if (!confirmVote) return;
+  // Multi-select vote logic (keeping current UI functionality)
+  const handleVote = async () => {
+    if (selectedOptions.length === 0 || voted || poll.status === "Closed" || isVoting) return;
 
     try {
       setIsVoting(true);
@@ -98,11 +77,8 @@ const PollCard = ({ poll, onVoted, onEdit, onDelete }) => {
       setSelectedOptions([]);
       
       onVoted?.(poll._id, updatedPoll);
-      
-      alert("You have successfully voted in this poll!");
     } catch (err) {
       console.error("Error voting:", err);
-      alert(err.response?.data?.message || "Error voting in poll");
     } finally {
       setIsVoting(false);
     }
@@ -117,7 +93,6 @@ const PollCard = ({ poll, onVoted, onEdit, onDelete }) => {
       await onDelete?.(poll._id); // Call parent handler - SYNCED
     } catch (err) {
       console.error("Error deleting poll:", err);
-      alert("Error deleting poll");
     }
   };
 
@@ -133,14 +108,21 @@ const PollCard = ({ poll, onVoted, onEdit, onDelete }) => {
     }
   };
 
+  const getTimeColor = (time) => {
+    if (!time) return "text-gray-600";
+    if (time.includes("minute")) return "text-green-600";
+    if (time.includes("hour")) return "text-blue-600";
+    if (time.includes("day")) return "text-purple-600";
+    return "text-gray-600";
+  };
+
   const formatDate = (dateString) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
     } catch {
       return 'Not specified';
     }
@@ -159,209 +141,335 @@ const PollCard = ({ poll, onVoted, onEdit, onDelete }) => {
 
   const totalVotes = getTotalVotes(); // SYNCED
 
+  const isGridView = viewMode === "Grid View";
+
   return (
-    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6 hover:shadow-lg transition-shadow relative">
-      
-      {/* Header - UPDATED: Edit/Delete buttons on the left side */}
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex items-center gap-3">
-          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${getStatusColor(poll.status)}`}>
-            {poll.status}
+    <div className={`bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow relative ${
+      isGridView ? 'p-4 h-full flex flex-col' : 'p-6 mb-6'
+    }`}>
+    
+    {/* Header */}
+    <div className={`flex justify-between items-start ${isGridView ? 'mb-3' : 'mb-4'}`}>
+      <div className="flex items-center gap-3">
+        <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${getStatusColor(poll.status)}`}>
+          {poll.status}
+        </span>
+        {isCreator && (
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
+            Your Poll
           </span>
-          {isCreator && (
-            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
-              Your Poll
-            </span>
-          )}
-          {/* Edit/Delete buttons for creator - MOVED HERE */}
-          {isCreator && (
-            <div className="flex gap-2 mr-3">
-              <button
-                onClick={() => onEdit?.(poll)}
-                className="px-3 py-1 bg-yellow-500 text-white rounded-md text-xs font-medium hover:bg-yellow-600 transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-3 py-1 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
-        <span className="text-xs text-gray-500">{poll.time}</span>
-      </div>
-
-      {/* Poll Question */}
-      <h3 className="text-xl font-bold text-gray-900 mb-3 leading-tight pr-20">
-        {poll.question}
-      </h3>
-
-      {/* Poll Description */}
-      <p className="text-gray-600 text-sm mb-6 leading-relaxed">
-        {poll.description}
-      </p>
-
-      {/* Poll Options */}
-      <div className="mb-6">
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">Options:</h4>
-        <div className="space-y-3">
-          {poll.options?.map((option, index) => {
-            const isSelected = selectedOptions.includes(index);
-            const optionVotes = optionCounts[index]; // SYNCED - use optionCounts
-            const votePercentage = getVotePercentage(index, totalVotes);
-            const isVotedOption = voted && votedOption === index; // SYNCED
-            
-            return (
-              <div
-                key={index}
-                onClick={() => !voted ? handleOptionSelect(index) : handleVote(index)} // SYNCED - allow direct voting
-                className={`relative p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer ${
-                  voted || poll.status === "Closed"
-                    ? isVotedOption 
-                      ? "border-green-500 bg-green-50" // SYNCED - highlight voted option
-                      : "cursor-not-allowed opacity-60"
-                    : isCreator
-                    ? "cursor-not-allowed opacity-60"
-                    : isSelected
-                    ? "border-green-500 bg-green-50"
-                    : "border-gray-200 hover:border-green-400 hover:bg-green-50"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      (isSelected || isVotedOption)
-                        ? "border-green-500 bg-green-500" 
-                        : "border-gray-300"
-                    }`}>
-                      {(isSelected || isVotedOption) && (
-                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {typeof option === 'string' ? option : option.text} {/* SYNCED - handle both formats */}
-                      {isVotedOption && <span className="text-green-600 ml-2">✓ Your vote</span>} {/* SYNCED */}
-                    </span>
-                  </div>
-                  
-                  {/* Vote count and percentage */}
-                  <div className="text-right">
-                    <span className="text-sm font-semibold text-gray-700">
-                      {optionVotes} votes {/* SYNCED - use optionCounts */}
-                    </span>
-                    {totalVotes > 0 && (
-                      <div className="text-xs text-gray-500">
-                        {votePercentage}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Vote progress bar */}
-                {totalVotes > 0 && (
-                  <div className="mt-2">
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          isVotedOption ? 'bg-green-600' : 'bg-green-500'
-                        }`} // SYNCED - different color for voted option
-                        style={{ width: `${votePercentage}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* UPDATED: Location, Closing Date, and Total Votes in ONE LINE - REMOVED Goal */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">📍</span>
-          <div>
-            <p className="text-xs text-gray-500">Location</p>
-            <p className="text-sm font-medium text-gray-700">{poll.location}</p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <span className="text-lg">📅</span>
-          <div>
-            <p className="text-xs text-gray-500">Closes on</p>
-            <p className="text-sm font-medium text-gray-700">
-              {poll.expiresAt ? formatDate(poll.expiresAt) : 'No end date'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-lg">🗳️</span>
-          <div>
-            <p className="text-xs text-gray-500">Total Votes</p>
-            <p className="text-sm font-medium text-blue-900">{totalVotes}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer Actions */}
-      <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
-            {poll.category}
-          </span>
-          <span className="text-xs text-gray-500">
-            by {poll.creator?.name || poll.creator}
-          </span>
-        </div>
-
-        {/* Vote Button - UPDATED FOR BACKEND COMPATIBILITY */}
-        {!isCreator && (
-          <button
-            onClick={() => handleVote()} // Multi-select vote
-            disabled={voted || isVoting || poll.status === "Closed" || selectedOptions.length === 0}
-            className={`px-6 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-              voted
-                ? "bg-green-500 text-white cursor-default"
-                : poll.status === "Closed"
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                : selectedOptions.length === 0
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                : isVoting
-                ? "bg-blue-400 text-white cursor-wait"
-                : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
-            }`}
-          >
-            {isVoting ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Voting...
-              </div>
-            ) : voted ? (
-              "✓ Voted"
-            ) : poll.status === "Closed" ? (
-              "Poll Closed"
-            ) : selectedOptions.length === 0 ? (
-              "Select Options"
+        )}
+        {/* Edit/Delete buttons for BOTH List and Grid View - RIGHT AFTER BADGES */}
+        {isCreator && (
+          <div className="flex gap-2">
+            {!isGridView ? (
+              // List View - Text buttons
+              <>
+                <button
+                  onClick={() => onEdit?.(poll)}
+                  className="px-3 py-1 bg-yellow-500 text-white rounded-md text-xs font-medium hover:bg-yellow-600 transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-3 py-1 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+              </>
             ) : (
-              `Vote (${selectedOptions.length} selected)`
+              // Grid View - Text buttons (same as List View)
+              <>
+                <button
+                  onClick={() => onEdit?.(poll)}
+                  className="px-3 py-1 bg-yellow-500 text-white rounded-md text-xs font-medium hover:bg-yellow-600 transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-3 py-1 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+              </>
             )}
-          </button>
+          </div>
         )}
       </div>
+      
+      <div className="flex items-center gap-1">
+        <span className={`text-xs ${getTimeColor(poll.time)}`}>
+          {poll.time || 'Recently'}
+        </span>
+      </div>
+    </div>
 
-      {/* Voting instruction */}
-      {!voted && poll.status !== "Closed" && !isCreator && (
-        <div className="mt-3 p-2 bg-yellow-50 rounded text-xs text-yellow-700 text-center">
-          💡 Click an option to vote directly, or select multiple and click Vote button
+    {/* Poll Question */}
+    <h3 className={`font-bold text-gray-900 leading-tight ${
+      isGridView 
+        ? 'text-base mb-2' 
+        : 'text-xl mb-2 pr-20'
+    }`} style={isGridView ? {
+      overflow: 'hidden',
+      display: '-webkit-box',
+      WebkitBoxOrient: 'vertical',
+      WebkitLineClamp: 2,
+      lineHeight: '1.4em',
+      maxHeight: '2.8em'
+    } : {}}>
+      {poll.question}
+    </h3>
+
+    {/* Poll Description */}
+    <p className={`text-gray-600 text-sm leading-relaxed ${
+      isGridView ? 'mb-3' : 'mb-6'
+    }`} style={isGridView ? {
+      overflow: 'hidden',
+      display: '-webkit-box',
+      WebkitBoxOrient: 'vertical',
+      WebkitLineClamp: 2,
+      lineHeight: '1.4em',
+      maxHeight: '2.8em'
+    } : {}}>
+      {poll.description}
+    </p>
+
+    {/* Poll Options */}
+    <div className={`${isGridView ? 'mb-4 flex-1' : 'mb-4'}`}>
+      <div className={`space-y-2 ${
+        isGridView && poll.options && poll.options.length > 2 
+          ? 'max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400' 
+          : ''
+      }`}>
+        {poll.options?.slice(0, isGridView ? poll.options.length : poll.options.length).map((option, index) => {
+          const isSelected = selectedOptions.includes(index);
+          const optionVotes = optionCounts[index];
+          const votePercentage = getVotePercentage(index, totalVotes);
+          const isVotedOption = voted && votedOption === index;
+          
+          return (
+            <div
+              key={index}
+              onClick={() => handleOptionSelect(index)}
+              className={`relative ${isGridView ? 'p-2' : 'p-3'} rounded-lg border transition-all duration-200 cursor-pointer ${
+                voted || poll.status === "Closed"
+                  ? isVotedOption 
+                    ? "border-green-500 bg-green-50"
+                    : "cursor-not-allowed opacity-60"
+                  : isSelected
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-200 hover:border-green-400 hover:bg-green-50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                    (isSelected || isVotedOption)
+                      ? "border-green-500 bg-green-500" 
+                      : "border-gray-300"
+                  }`}>
+                    {(isSelected || isVotedOption) && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className={`font-medium text-gray-900 truncate ${
+                    isGridView ? 'text-sm' : 'text-base'
+                  }`}>
+                    {typeof option === 'string' ? option : option.text}
+                    {isVotedOption && <span className="text-green-600 ml-1">✓</span>}
+                  </span>
+                </div>
+                
+                <div className="text-right flex-shrink-0 ml-2">
+                  <span className={`font-semibold text-gray-700 ${
+                    isGridView ? 'text-xs' : 'text-sm'
+                  }`}>
+                    {optionVotes} votes
+                  </span>
+                  {totalVotes > 0 && (
+                    <div className={`text-gray-500 ${
+                      isGridView ? 'text-xs' : 'text-sm'
+                    }`}>
+                      {votePercentage}%
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Progress Bar */}
+              {totalVotes > 0 && (
+                <div className={isGridView ? 'mt-1' : 'mt-2'}>
+                  <div className={`w-full bg-gray-200 rounded-full ${
+                    isGridView ? 'h-1' : 'h-2'
+                  }`}>
+                    <div
+                      className={`${isGridView ? 'h-1' : 'h-2'} rounded-full transition-all duration-300 ${
+                        isVotedOption ? 'bg-green-600' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${votePercentage}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    {/* Footer */}
+    <div className={isGridView ? 'mt-auto' : ''}>
+      {isGridView ? (
+        // Grid View Footer - Updated Layout
+        <div className="space-y-2">
+          {/* First Line - 3 Info Items */}
+          <div className=" text-xs mb-3 flex justify-between items-center w-full">
+            <div className="flex items-center min-w-0">
+              <LocationOnIcon className="text-blue-600 mr-1 flex-shrink-0" style={{ fontSize: '14px' }} />
+              <span className="text-blue-900 truncate">{poll.location || 'N/A'}</span>
+            </div>
+            
+            <div className="flex items-center min-w-0">
+              <EventIcon className="text-orange-600 mr-1 flex-shrink-0" style={{ fontSize: '14px' }} />
+              <span className="text-orange-900 truncate">
+                Closing: {poll.expiresAt ? formatDate(poll.expiresAt) : 'No end'}
+              </span>
+            </div>
+
+            <div className="flex items-center min-w-0">
+              <HowToVoteIcon className="text-green-600 mr-1 flex-shrink-0" style={{ fontSize: '14px' }} />
+              <span className="text-green-900">Votes: {totalVotes}</span>
+            </div>
+          </div>
+          
+          {/* Second Line - Creator Left, Category Right */}
+          {/* <div className="flex items-center justify-between text-xs mb-3">
+            <span className="text-gray-500 truncate">
+              {poll.creator?.name || poll.creator}
+            </span>
+            <span className="font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded flex-shrink-0">
+              {poll.category}
+            </span>
+          </div> */}
+        </div>
+      ) : (
+        // List View Footer - Original (unchanged)
+        <div className="flex justify-between items-center w-full">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
+              {poll.category}
+            </span>
+            <span className="text-xs text-gray-500">
+              by {poll.creator?.name || poll.creator}
+            </span>
+          </div>
+          
+          <div className="flex items-center">
+            <div className="p-1">
+              <LocationOnIcon className="text-blue-600" style={{ fontSize: '18px' }} />
+            </div>
+            <div className="ml-2">
+              <p className="text-xs font-semibold text-blue-900 truncate" title={poll.location}>
+                {poll.location || 'Not specified'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center">
+            <div className="p-1">
+              <EventIcon className="text-orange-600" style={{ fontSize: '18px' }} />
+            </div>
+            <div className="ml-2">
+              <p className="text-xs font-semibold text-orange-900 truncate">
+                Closes on: {poll.expiresAt ? formatDate(poll.expiresAt) : 'No end date'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center">
+            <div className="p-1">
+              <HowToVoteIcon className="text-green-600" style={{ fontSize: '18px' }} />
+            </div>
+            <div className="ml-2">
+              <p className="text-xs font-semibold text-green-900">
+                Total Votes: {totalVotes.toLocaleString()}
+              </p>
+            </div>
+          </div>
+    
+          <div className="flex justify-end">
+            <button
+              onClick={() => handleVote()}
+              disabled={voted || isVoting || poll.status === "Closed" || selectedOptions.length === 0}
+              className={`px-4 py-2 rounded-md text-white font-medium transition-all duration-200 ${
+                voted
+                  ? "bg-green-500 text-white cursor-default"
+                  : poll.status === "Closed"
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : selectedOptions.length === 0
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : isVoting
+                  ? "bg-blue-400 text-white cursor-wait"
+                  : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
+              }`}
+            >
+              {isVoting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Voting...
+                </div>
+              ) : voted ? (
+                "✓ Voted"
+              ) : poll.status === "Closed" ? (
+                "Poll Closed"
+              ) : selectedOptions.length === 0 ? (
+                "Select Options"
+              ) : (
+                `Vote (${selectedOptions.length} selected)`
+              )}
+            </button>
+          </div>
         </div>
       )}
+
+      {/* Vote Button for Grid View - Separate from footer */}
+      {isGridView && (
+        <button
+          onClick={() => handleVote()}
+          disabled={voted || isVoting || poll.status === "Closed" || selectedOptions.length === 0}
+          className={`w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+            voted
+              ? "bg-green-500 text-white cursor-default"
+              : poll.status === "Closed"
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              : selectedOptions.length === 0
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              : isVoting
+              ? "bg-blue-400 text-white cursor-wait"
+              : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
+          }`}
+        >
+          {isVoting ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Voting...
+            </div>
+          ) : voted ? (
+            "✓ Voted"
+          ) : poll.status === "Closed" ? (
+            "Poll Closed"
+          ) : selectedOptions.length === 0 ? (
+            "Select Option"
+          ) : (
+            `Vote (${selectedOptions.length})`
+          )}
+        </button>
+      )}
+    </div>
     </div>
   );
 };

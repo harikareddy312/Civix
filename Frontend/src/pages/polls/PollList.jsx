@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom"; // Add this import
+import { useSearchParams } from "react-router-dom";
 import PollStats from "./PollStats";
 import PollFilters from "./PollFilters";
 import PollCard from "./PollCard";
 import { useNavigate } from "react-router-dom";
 import { pollService } from "../../services/pollService";
 import { getCurrentUserId } from "../../utils/auth";
-import { Alert, Box, Chip } from "@mui/material"; // Add these imports
+import { Alert, Box, Chip } from "@mui/material";
 
 const PollList = () => {
   const currentUserId = getCurrentUserId();
   const navigate = useNavigate();
   
-  // Add search params handling
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('search');
   const highlightId = searchParams.get('highlight');
@@ -22,6 +21,7 @@ const PollList = () => {
     type: "Active Polls",
     location: "All Locations",
     status: "All Status",
+    view: "List View", // Add view state
   });
   const [polls, setPolls] = useState([]);
   const [filteredPolls, setFilteredPolls] = useState([]);
@@ -271,8 +271,12 @@ const PollList = () => {
           />
         </div>
 
-        {/* Polls List */}
-        <div className="space-y-6">
+        {/* Polls List - UPDATED FOR GRID VIEW */}
+        <div className={
+          filters.view === "Grid View" 
+            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
+            : "space-y-6"
+        }>
           {filteredPolls.length > 0 ? (
             filteredPolls.map((poll, index) => {
               const isHighlighted = poll._id === highlightId || poll.id === highlightId;
@@ -307,12 +311,13 @@ const PollList = () => {
                     onDelete={handleDeletePoll}
                     isHighlighted={isHighlighted}
                     searchQuery={fromSearch ? searchQuery : null}
+                    viewMode={filters.view} // Pass view mode to PollCard
                   />
                 </div>
               );
             })
           ) : (
-            <div className="text-center py-20">
+            <div className="col-span-full text-center py-20">
               <div className="text-gray-400 text-6xl mb-4">🗳️</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 {fromSearch && searchQuery 

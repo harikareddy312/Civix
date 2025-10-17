@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // Add this import
 import petitionService from "../../services/petitionService";
 import { getSignedPetitions } from "../../services/signatureService";
 import { getCurrentUserId } from "../../utils/auth";
 
 const PetitionStats = ({ onCreatePetition }) => {
+  const navigate = useNavigate(); // Add navigation hook
+  
   // Get userId from localStorage
   const userId = getCurrentUserId();
 
@@ -147,10 +150,18 @@ const PetitionStats = ({ onCreatePetition }) => {
     );
   }
 
+  // Handle create petition click
+  const handleCreatePetition = () => {
+    if (onCreatePetition) {
+      onCreatePetition();
+    } else {
+      // Fallback navigation if prop is not provided
+      navigate('/dashboard/petitions/create');
+    }
+  };
+
   return (
     <div>
-      
-
       {/* Error message */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
@@ -193,7 +204,7 @@ const PetitionStats = ({ onCreatePetition }) => {
         {/* 5th container - Enhanced Create New Petition Card */}
         <div
           className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-lg p-6 hover:from-blue-700 hover:to-blue-800 transition-all duration-300 cursor-pointer transform hover:scale-105 hover:shadow-xl"
-          onClick={onCreatePetition}
+          onClick={handleCreatePetition}
         >
           <div className="w-full h-full flex flex-col items-center justify-center text-center text-white">
             <div className="text-4xl mb-3 font-light opacity-90">+</div>
@@ -204,8 +215,6 @@ const PetitionStats = ({ onCreatePetition }) => {
           </div>
         </div>
       </div>
-
-      
     </div>
   );
 };
