@@ -112,7 +112,7 @@ export const deletePoll = async (req, res) => {
       return res.status(403).json({ success: false, message: "You can only delete your own poll" });
     }
     await poll.deleteOne();
-    res.json({ success: true, message: "Poll deleted" });
+    res.json({ success: true });
   } catch (err) {
     console.error("Delete poll error:", err);
     res.status(500).json({ success: false, message: "Error deleting poll", error: err.message });

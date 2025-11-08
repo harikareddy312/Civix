@@ -114,7 +114,6 @@ export const createPetition = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Petition created successfully',
       petition: {
         ...petition.toObject(),
         signaturesCount: 0,

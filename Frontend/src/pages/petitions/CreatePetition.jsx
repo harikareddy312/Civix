@@ -117,11 +117,11 @@ const CreatePetition = () => {
         // Update existing petition
         const petitionId = id || petitionData._id;
         await petitionService.updatePetition(petitionId, formData);
-        alert("Petition updated successfully!");
+        // alert("Petition updated successfully!");
       } else {
         // Create new petition
         await petitionService.createPetition(formData);
-        alert("Petition created successfully!");
+        // alert("Petition created successfully!");
       }
       
       navigate("/dashboard/petitions");

@@ -98,6 +98,28 @@ const PollResultsCard = ({ poll, showSentiment = true, isHighlighted = false, re
     return `${baseClasses} ${colorClasses} ${animationClasses}`;
   };
 
+  // NEW: compute sentiment for this poll using vote data (same logic as SentimentChart)
+  const pollSentiment = useMemo(() => {
+    if (!poll) return 'neutral';
+    const votes = poll.votes || [];
+    const totalVotes = votes.length;
+    if (totalVotes === 0) return 'neutral';
+
+    const optionCounts = poll.options?.map((_, i) =>
+      votes.filter(v => v.option === i).length
+    ) || [];
+
+    const topVotes = Math.max(...optionCounts);
+    const dominance = (topVotes / totalVotes) * 100; // %
+
+    if (dominance > 55) return 'positive';
+    if (dominance < 45) return 'negative';
+    return 'neutral';
+  }, [poll]);
+
+  // use provided poll.sentiment if present, otherwise use computed one
+  const displayedSentiment = pollSentiment;
+  
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-300 transform hover:scale-105 hover:-translate-y-1" 
     style={{ 
@@ -116,9 +138,9 @@ const PollResultsCard = ({ poll, showSentiment = true, isHighlighted = false, re
                 {poll.status}
               </span>
               
-              {showSentiment && poll.sentiment && (
-                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1 ${getSentimentColor(poll.sentiment)}`}>
-                  {poll.sentiment}
+              {showSentiment && displayedSentiment && (
+                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1 ${getSentimentColor(displayedSentiment)}`}>
+                  {displayedSentiment}
                 </span>
               )}
             </div>

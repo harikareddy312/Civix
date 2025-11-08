@@ -205,17 +205,14 @@ const PollList = () => {
   };
 
   const handleDeletePoll = async (pollId) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this poll? This action cannot be undone."
-    );
-    if (!confirmDelete) return;
+    
 
     try {
       await pollService.deletePoll(pollId);
       setPolls(prev => prev.filter(p => p._id !== pollId && p.id !== pollId));
       setFilteredPolls(prev => prev.filter(p => p._id !== pollId && p.id !== pollId));
       setRefreshTrigger(prev => prev + 1);
-      alert("Poll deleted successfully!");
+      
     } catch (err) {
       console.error("Error deleting poll:", err);
       alert(err.response?.data?.message || "Error deleting poll");

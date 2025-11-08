@@ -85,8 +85,7 @@ const PollCard = ({ poll, onVoted, onEdit, onDelete, viewMode = "List View" }) =
 
   // Delete handler
   const handleDelete = async () => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this poll? This action cannot be undone.");
-    if (!confirmDelete) return;
+    
     
     try {
       await onDelete?.(poll._id);

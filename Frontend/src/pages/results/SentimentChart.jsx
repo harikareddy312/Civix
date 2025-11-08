@@ -1,62 +1,50 @@
 import React, { useMemo } from 'react';
 
 const SentimentChart = ({ polls }) => {
-  // ✅ IMPROVED: Calculate sentiment based on actual vote data
+  // Calculate sentiment based on actual vote data
   const sentimentData = useMemo(() => {
-    if (!polls || polls.length === 0) return { positive: 0, negative: 0, neutral: 0 };
+    if (!polls || polls.length === 0) 
+      return { positive: 0, negative: 0, neutral: 0 };
 
-    const sentiments = polls.reduce((acc, poll) => {
-      // Calculate sentiment dynamically from vote distribution
+    const result = { positive: 0, negative: 0, neutral: 0 };
+
+    polls.forEach(poll => {
       const votes = poll.votes || [];
       const totalVotes = votes.length;
-      
       if (totalVotes === 0) {
-        acc.neutral++;
-        return acc;
+        result.neutral++;
+        return;
       }
 
-      // Analyze voting patterns
-      const optionVotes = poll.options?.map((_, idx) => 
-        votes.filter(v => v.option === idx).length
+      // Count votes per option
+      const optionCounts = poll.options?.map((_, i) =>
+        votes.filter(v => v.option === i).length
       ) || [];
 
-      const maxVotes = Math.max(...optionVotes);
-      const maxVotePercentage = (maxVotes / totalVotes) * 100;
+      const topVotes = Math.max(...optionCounts);
+      const dominance = (topVotes / totalVotes) * 100; // %
 
-      // Determine sentiment based on voting concentration and question content
-      const question = (poll.question || '').toLowerCase();
-      const isPositiveQuestion = question.includes('support') || 
-                                question.includes('favor') || 
-                                question.includes('yes') ||
-                                question.includes('agree');
-
-      if (maxVotePercentage > 60) {
-        // Strong majority
-        if (isPositiveQuestion) {
-          acc.positive++;
-        } else {
-          acc.negative++;
-        }
-      } else if (maxVotePercentage > 40) {
-        // Moderate majority
-        acc.neutral++;
-      } else {
-        // Divided opinion
-        acc.neutral++;
+      if (dominance > 55) {
+        result.positive++;
+      } 
+      else if (dominance < 45) {
+        result.negative++;
+      } 
+      else {
+        result.neutral++;
       }
-
-      return acc;
-    }, { positive: 0, negative: 0, neutral: 0 });
+    });
 
     const total = polls.length;
+
     return {
-      positive: Math.round((sentiments.positive / total) * 100),
-      negative: Math.round((sentiments.negative / total) * 100),
-      neutral: Math.round((sentiments.neutral / total) * 100)
+      positive: Math.round((result.positive / total) * 100),
+      negative: Math.round((result.negative / total) * 100),
+      neutral: Math.round((result.neutral / total) * 100)
     };
   }, [polls]);
 
-  // ✅ UPDATED: Calculate engagement based on votes per day
+  // UPDATED: Calculate engagement based on votes per day
   const engagementData = useMemo(() => {
     if (!polls || polls.length === 0) return [];
 
@@ -101,12 +89,12 @@ const SentimentChart = ({ polls }) => {
 
   const maxEngagement = Math.max(...engagementData.map(d => d.engagement), 1);
 
-  // ✅ NEW: Calculate total votes across all polls
+  // NEW: Calculate total votes across all polls
   const totalVotes = useMemo(() => {
     return polls?.reduce((sum, poll) => sum + (poll.votes?.length || 0), 0) || 0;
   }, [polls]);
 
-  // ✅ NEW: Calculate average votes per day across all polls
+  // NEW: Calculate average votes per day across all polls
   const avgVotesPerDay = useMemo(() => {
     if (!polls || polls.length === 0) return 0;
 
@@ -206,6 +194,20 @@ const SentimentChart = ({ polls }) => {
             </div>
             <div className="text-xs text-gray-500 mt-2">
               Based on {totalVotes.toLocaleString()} votes across {polls?.length || 0} polls
+            </div>
+          </div>
+
+          {/* Sentiment rules for user clarity (no emojis) */}
+          <div className="mt-3 p-3 bg-white border border-gray-100 rounded text-xs text-gray-600">
+            <div className="font-medium text-gray-800 mb-2">How sentiment is assigned</div>
+            <ul className="list-disc ml-5 space-y-1">
+              <li>Dominance = (votes for top option ÷ total votes) × 100</li>
+              <li>&gt; 55% — Positive</li>
+              <li>&lt; 45% — Negative</li>
+              <li>45–55% — Neutral</li>
+            </ul>
+            <div className="mt-2">
+              Sentiment is computed per poll from actual vote counts. The charts above show the percentage of polls classified into these categories.
             </div>
           </div>
         </div>
