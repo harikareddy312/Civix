@@ -2,7 +2,7 @@
 import axios from "axios";
 import api from './api'; // Add this import
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "https://civix-engagement.onrender.com";
 const DEFAULT_CONFIG = { withCredentials: true };
 
 // Get polls with optional filters
